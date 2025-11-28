@@ -10,7 +10,6 @@ import (
 
 func handleConnection(conn net.Conn, aof *Aof) {
 	defer conn.Close()
-
 	resp := NewResp(conn)
 
 	for {
@@ -24,12 +23,7 @@ func handleConnection(conn net.Conn, aof *Aof) {
 			break
 		}
 
-		if value.Typ != "array" {
-			fmt.Println("Invalid request, expected array")
-			continue
-		}
-
-		if len(value.Array) == 0 {
+		if value.Typ != "array" || len(value.Array) == 0 {
 			continue
 		}
 
@@ -39,31 +33,59 @@ func handleConnection(conn net.Conn, aof *Aof) {
 		handler, ok := Handlers[command]
 
 		if !ok {
-			fmt.Println("Invalid command: ", command)
 			writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
-
 			continue
 		}
 
-		if command == "SET" {
+		if command == "SET" || command == "DEL" {
 			aof.Write(value)
 		}
 
 		result := handler(args)
-
 		writer.Write(result)
 	}
 }
 
-func main() {
-	fmt.Println("Listening on port :6379")
+func connectToMaster(address string) {
+	parts := strings.Split(address, " ")
+	masterConn, err := net.Dial("tcp", parts[0]+":"+parts[1])
+	if err != nil {
+		fmt.Println("Failed to connect to master:", err)
+		return
+	}
 
-	listener, err := net.Listen("tcp", ":6379")
+	fmt.Println("✅ Connected to Master!")
+
+	resp := NewResp(masterConn)
+
+	for {
+		value, err := resp.Read()
+		if err != nil {
+			fmt.Println("Disconnected from master")
+			return
+		}
+
+		if value.Typ == "array" && len(value.Array) > 0 {
+			command := strings.ToUpper(value.Array[0].Bulk)
+			args := value.Array[1:]
+
+			if handler, ok := Handlers[command]; ok {
+				handler(args)
+				fmt.Printf("Replicated: %s\n", command)
+			}
+		}
+	}
+}
+
+func main() {
+	InitConfig()
+
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", CurrentConfig.Port))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	aof, err := NewAof("database.aof")
+	aof, err := NewAof(fmt.Sprintf("database_%d.aof", CurrentConfig.Port))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,17 +97,21 @@ func main() {
 		handler, ok := Handlers[command]
 
 		if !ok {
-			fmt.Println("Invalid command in AOF: ", command)
 			return
 		}
 
 		handler(args)
 	})
 
+	if CurrentConfig.ReplicaOf != "" {
+		go connectToMaster(CurrentConfig.ReplicaOf)
+	}
+
+	fmt.Printf("🚀 EchoVault listening on port %d...\n", CurrentConfig.Port)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println(err)
 			continue
 		}
 
