@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 func handleConnection(conn net.Conn, aof *Aof) {
@@ -180,6 +181,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	rdb := NewRDB(fmt.Sprintf("database_%d.rdb", CurrentConfig.Port), 5*time.Minute)
+
+	if err := rdb.Load(); err != nil {
+		log.Printf("Warning: failed to load RDB: %v", err)
+	} else {
+		fmt.Println("📂 Loaded RDB snapshot")
+	}
+
 	aof, err := NewAof(fmt.Sprintf("database_%d.aof", CurrentConfig.Port))
 	if err != nil {
 		log.Fatal(err)
@@ -197,6 +206,10 @@ func main() {
 
 		handler(args)
 	})
+
+	// Start background RDB snapshots (every 5 minutes)
+	rdb.StartBackgroundSave()
+	defer rdb.Stop()
 
 	if CurrentConfig.ReplicaOf != "" {
 		go connectToMaster(CurrentConfig.ReplicaOf)
