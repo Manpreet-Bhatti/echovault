@@ -11,14 +11,13 @@ import (
 func handleConnection(conn net.Conn, aof *Aof) {
 	defer conn.Close()
 
-	PeersMu.Lock()
-	Peers[conn] = true
-	PeersMu.Unlock()
-
+	isReplica := false
 	defer func() {
-		PeersMu.Lock()
-		delete(Peers, conn)
-		PeersMu.Unlock()
+		if isReplica {
+			PeersMu.Lock()
+			delete(Peers, conn)
+			PeersMu.Unlock()
+		}
 	}()
 
 	resp := NewResp(conn)
@@ -43,6 +42,15 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 		command := strings.ToUpper(value.Array[0].Bulk)
 		args := value.Array[1:]
+
+		if command == "REPLICATE" {
+			PeersMu.Lock()
+			Peers[conn] = true
+			PeersMu.Unlock()
+			isReplica = true
+			writer.Write(Value{Typ: "string", Str: "OK"})
+			continue
+		}
 
 		if command == "MULTI" {
 			if inMulti {
@@ -133,6 +141,13 @@ func connectToMaster(address string) {
 		fmt.Println("Failed to connect to master:", err)
 		return
 	}
+	defer masterConn.Close()
+
+	replicateCmd := Value{
+		Typ:   "array",
+		Array: []Value{{Typ: "bulk", Bulk: "REPLICATE"}},
+	}
+	masterConn.Write(replicateCmd.Marshal())
 
 	fmt.Println("✅ Connected to Master!")
 
