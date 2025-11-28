@@ -56,6 +56,17 @@ func set(args []Value) Value {
 	}
 	HSETsMu.Unlock()
 
+	cmd := Value{
+		Typ:   "array",
+		Array: append([]Value{{Typ: "bulk", Bulk: "SET"}}, args...),
+	}
+
+	PeersMu.Lock()
+	for peer := range Peers {
+		peer.Write(cmd.Marshal())
+	}
+	PeersMu.Unlock()
+
 	return Value{Typ: "string", Str: "OK"}
 }
 

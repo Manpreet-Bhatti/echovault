@@ -10,6 +10,17 @@ import (
 
 func handleConnection(conn net.Conn, aof *Aof) {
 	defer conn.Close()
+
+	PeersMu.Lock()
+	Peers[conn] = true
+	PeersMu.Unlock()
+
+	defer func() {
+		PeersMu.Lock()
+		delete(Peers, conn)
+		PeersMu.Unlock()
+	}()
+
 	resp := NewResp(conn)
 
 	for {
