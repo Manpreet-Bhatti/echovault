@@ -10,24 +10,25 @@ import (
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	// Hold incoming data
-	buff := make([]byte, 1024)
+	resp := NewResp(conn)
 
 	for {
-		n, err := conn.Read(buff)
+		value, err := resp.Read()
 
 		if err != nil {
-			if err != io.EOF {
-				fmt.Println("Read error:", err)
+			if err == io.EOF {
+				fmt.Println("Client disconnected")
+				break
 			}
-			break
 		}
 
-		command := string(buff[:n])
+		if value.Typ == "array" {
+			fmt.Println("Received Command:")
 
-		fmt.Printf("Received: %q\n", command)
-
-		conn.Write([]byte("Echo: " + command))
+			for _, v := range value.Array {
+				fmt.Printf("  %s\n", v.Bulk)
+			}
+		}
 	}
 }
 
