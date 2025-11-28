@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,8 @@ var SETs = map[string]string{}
 var SETsMu = sync.RWMutex{}
 var HSETs = map[string]time.Time{}
 var HSETsMu = sync.RWMutex{}
+var Peers = map[net.Conn]bool{}
+var PeersMu = sync.Mutex{}
 
 func ping(args []Value) Value {
 	if len(args) == 0 {
@@ -36,16 +39,9 @@ func set(args []Value) Value {
 	value := args[1].Bulk
 	var expiresAt time.Time
 
-	if len(args) == 4 {
-		if strings.ToUpper(args[2].Bulk) == "EX" {
-			seconds, err := strconv.ParseInt(args[3].Bulk, 10, 64)
-
-			if err != nil {
-				return Value{Typ: "error", Str: "ERR value is not an integer or out of range"}
-			}
-
-			expiresAt = time.Now().Add(time.Duration(seconds) * time.Second)
-		}
+	if len(args) == 4 && strings.ToUpper(args[2].Bulk) == "EX" {
+		seconds, _ := strconv.ParseInt(args[3].Bulk, 10, 64)
+		expiresAt = time.Now().Add(time.Duration(seconds) * time.Second)
 	}
 
 	SETsMu.Lock()
