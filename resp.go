@@ -19,6 +19,10 @@ type Resp struct {
 	reader *bufio.Reader
 }
 
+type Writer struct {
+	writer io.Writer
+}
+
 func NewResp(rd io.Reader) *Resp {
 	return &Resp{reader: bufio.NewReader(rd)}
 }
@@ -113,4 +117,41 @@ func (r *Resp) Read() (Value, error) {
 		fmt.Printf("Unknown type: %v\n", string(_type))
 		return Value{}, nil
 	}
+}
+
+func (v Value) Marshal() []byte {
+	switch v.Typ {
+	case "array":
+		var bytes []byte
+
+		bytes = append(bytes, Value{Typ: "array", Num: len(v.Array)}.Marshal()...)
+
+		for _, val := range v.Array {
+			bytes = append(bytes, val.Marshal()...)
+		}
+
+		return bytes
+	case "bulk":
+		return fmt.Appendf(nil, "$%d\r\n%s\r\n", len(v.Bulk), v.Bulk)
+	case "string":
+		return fmt.Appendf(nil, "+%s\r\n", v.Str)
+	case "null":
+		return fmt.Appendf(nil, "$-1\r\n")
+	case "error":
+		return fmt.Appendf(nil, "-%s\r\n", v.Str)
+	default:
+		return []byte{}
+	}
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{writer: w}
+}
+
+func (w *Writer) Write(v Value) error {
+	var bytes = v.Marshal()
+
+	_, err := w.writer.Write(bytes)
+
+	return err
 }
