@@ -124,7 +124,7 @@ func (v Value) Marshal() []byte {
 	case "array":
 		var bytes []byte
 
-		bytes = append(bytes, Value{Typ: "array", Num: len(v.Array)}.Marshal()...)
+		bytes = append(bytes, fmt.Appendf(nil, "*%d\r\n", len(v.Array))...)
 
 		for _, val := range v.Array {
 			bytes = append(bytes, val.Marshal()...)

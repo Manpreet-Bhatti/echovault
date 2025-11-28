@@ -41,7 +41,9 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 		if !ok {
 			fmt.Println("Invalid command: ", command)
+
 			writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
+
 			continue
 		}
 
@@ -84,6 +86,7 @@ func main() {
 
 		handler(args)
 	})
+
 	for {
 		conn, err := listener.Accept()
 

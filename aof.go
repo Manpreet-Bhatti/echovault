@@ -34,6 +34,7 @@ func (aof *Aof) Close() error {
 	return aof.file.Close()
 }
 
+// Write writes the command (as a Value) to the disk
 func (aof *Aof) Write(v Value) error {
 	aof.mu.Lock()
 
@@ -48,6 +49,7 @@ func (aof *Aof) Write(v Value) error {
 	return aof.file.Sync()
 }
 
+// Read reads the AOF file from the beginning and executes the callback for each command
 func (aof *Aof) Read(fn func(value Value)) error {
 	aof.mu.Lock()
 
