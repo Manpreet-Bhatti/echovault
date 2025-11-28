@@ -9,10 +9,11 @@ import (
 )
 
 var Handlers = map[string]func([]Value) Value{
-	"PING": ping,
-	"SET":  setLocked,
-	"GET":  get,
-	"DEL":  delLocked,
+	"PING":   ping,
+	"SET":    setLocked,
+	"GET":    get,
+	"DEL":    delLocked,
+	"BGSAVE": bgsave,
 }
 
 var CoreHandlers = map[string]func([]Value) Value{
