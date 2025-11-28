@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 )
 
 func handleConnection(conn net.Conn) {
@@ -20,15 +21,34 @@ func handleConnection(conn net.Conn) {
 				fmt.Println("Client disconnected")
 				break
 			}
+
+			fmt.Println("Error reading from client:", err)
+			break
 		}
 
-		if value.Typ == "array" {
-			fmt.Println("Received Command:")
-
-			for _, v := range value.Array {
-				fmt.Printf("  %s\n", v.Bulk)
-			}
+		if value.Typ != "array" {
+			fmt.Println("Invalid request, expected array")
+			continue
 		}
+
+		if len(value.Array) == 0 {
+			continue
+		}
+
+		command := strings.ToUpper(value.Array[0].Bulk)
+		args := value.Array[1:]
+		writer := NewWriter(conn)
+		handler, ok := Handlers[command]
+
+		if !ok {
+			fmt.Println("Invalid command: ", command)
+			writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
+			continue
+		}
+
+		result := handler(args)
+
+		writer.Write(result)
 	}
 }
 
