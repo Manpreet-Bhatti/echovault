@@ -22,6 +22,9 @@ func handleConnection(conn net.Conn, aof *Aof) {
 	}()
 
 	resp := NewResp(conn)
+	writer := NewWriter(conn)
+	inMulti := false
+	queue := [][]Value{}
 
 	for {
 		value, err := resp.Read()
@@ -30,7 +33,7 @@ func handleConnection(conn net.Conn, aof *Aof) {
 				break
 			}
 
-			fmt.Println(err)
+			fmt.Println("Error:", err)
 			break
 		}
 
@@ -40,9 +43,73 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 		command := strings.ToUpper(value.Array[0].Bulk)
 		args := value.Array[1:]
-		writer := NewWriter(conn)
-		handler, ok := Handlers[command]
 
+		if command == "MULTI" {
+			if inMulti {
+				writer.Write(Value{Typ: "error", Str: "ERR MULTI calls can not be nested"})
+			} else {
+				inMulti = true
+				writer.Write(Value{Typ: "string", Str: "OK"})
+			}
+			continue
+		}
+
+		if command == "DISCARD" {
+			if !inMulti {
+				writer.Write(Value{Typ: "error", Str: "ERR DISCARD without MULTI"})
+			} else {
+				inMulti = false
+				queue = [][]Value{}
+				writer.Write(Value{Typ: "string", Str: "OK"})
+			}
+			continue
+		}
+
+		if command == "EXEC" {
+			if !inMulti {
+				writer.Write(Value{Typ: "error", Str: "ERR EXEC without MULTI"})
+				continue
+			}
+
+			results := []Value{}
+
+			for _, qArgs := range queue {
+				qCmd := strings.ToUpper(qArgs[0].Bulk)
+				qParams := qArgs[1:]
+
+				handler, ok := Handlers[qCmd]
+				if ok {
+					val := handler(qParams)
+					results = append(results, val)
+
+					if qCmd == "SET" || qCmd == "DEL" {
+						// Reconstruct the command to write to AOF
+					}
+				} else {
+					results = append(results, Value{Typ: "error", Str: "ERR unknown command"})
+				}
+			}
+
+			inMulti = false
+			queue = [][]Value{}
+
+			writer.Write(Value{Typ: "array", Array: results})
+			continue
+		}
+
+		if inMulti {
+			_, ok := Handlers[command]
+			if !ok {
+				writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
+				continue
+			}
+
+			queue = append(queue, value.Array)
+			writer.Write(Value{Typ: "string", Str: "QUEUED"})
+			continue
+		}
+
+		handler, ok := Handlers[command]
 		if !ok {
 			writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
 			continue
