@@ -30,14 +30,12 @@ func NewResp(rd io.Reader) *Resp {
 func (r *Resp) readLine() (line []byte, n int, err error) {
 	for {
 		b, err := r.reader.ReadByte()
-
 		if err != nil {
 			return nil, 0, err
 		}
 
 		n += 1
 		line = append(line, b)
-
 		if len(line) >= 2 && line[len(line)-2] == '\r' {
 			break
 		}
@@ -48,13 +46,11 @@ func (r *Resp) readLine() (line []byte, n int, err error) {
 
 func (r *Resp) readInteger() (x int, n int, err error) {
 	line, n, err := r.readLine()
-
 	if err != nil {
 		return 0, 0, err
 	}
 
 	i64, err := strconv.ParseInt(string(line), 10, 64)
-
 	if err != nil {
 		return 0, n, err
 	}
@@ -103,7 +99,6 @@ func (r *Resp) readBulk() (Value, error) {
 
 func (r *Resp) Read() (Value, error) {
 	_type, err := r.reader.ReadByte()
-
 	if err != nil {
 		return Value{}, err
 	}
@@ -123,7 +118,6 @@ func (v Value) Marshal() []byte {
 	switch v.Typ {
 	case "array":
 		var bytes []byte
-
 		bytes = append(bytes, fmt.Appendf(nil, "*%d\r\n", len(v.Array))...)
 
 		for _, val := range v.Array {
@@ -150,7 +144,6 @@ func NewWriter(w io.Writer) *Writer {
 
 func (w *Writer) Write(v Value) error {
 	var bytes = v.Marshal()
-
 	_, err := w.writer.Write(bytes)
 
 	return err

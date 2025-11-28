@@ -15,7 +15,6 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 	for {
 		value, err := resp.Read()
-
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -41,7 +40,6 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 		if !ok {
 			fmt.Println("Invalid command: ", command)
-
 			writer.Write(Value{Typ: "error", Str: "ERR unknown command"})
 
 			continue
@@ -61,17 +59,14 @@ func main() {
 	fmt.Println("Listening on port :6379")
 
 	listener, err := net.Listen("tcp", ":6379")
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	aof, err := NewAof("database.aof")
-
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	defer aof.Close()
 
 	aof.Read(func(value Value) {
@@ -89,7 +84,6 @@ func main() {
 
 	for {
 		conn, err := listener.Accept()
-
 		if err != nil {
 			fmt.Println(err)
 			continue
