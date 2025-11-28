@@ -10,9 +10,16 @@ import (
 
 var Handlers = map[string]func([]Value) Value{
 	"PING": ping,
-	"SET":  set,
+	"SET":  setLocked,
 	"GET":  get,
-	"DEL":  del,
+	"DEL":  delLocked,
+}
+
+var CoreHandlers = map[string]func([]Value) Value{
+	"PING": ping,
+	"SET":  setCore,
+	"GET":  get,
+	"DEL":  delCore,
 }
 
 var SETs = map[string]string{}
@@ -30,7 +37,7 @@ func ping(args []Value) Value {
 	return Value{Typ: "string", Str: args[0].Bulk}
 }
 
-func set(args []Value) Value {
+func setCore(args []Value) Value {
 	if len(args) < 2 {
 		return Value{Typ: "error", Str: "ERR wrong number of arguments for 'set' command"}
 	}
@@ -44,9 +51,7 @@ func set(args []Value) Value {
 		expiresAt = time.Now().Add(time.Duration(seconds) * time.Second)
 	}
 
-	SETsMu.Lock()
 	SETs[key] = value
-	SETsMu.Unlock()
 
 	HSETsMu.Lock()
 	if !expiresAt.IsZero() {
@@ -68,6 +73,12 @@ func set(args []Value) Value {
 	PeersMu.Unlock()
 
 	return Value{Typ: "string", Str: "OK"}
+}
+
+func setLocked(args []Value) Value {
+	SETsMu.Lock()
+	defer SETsMu.Unlock()
+	return setCore(args)
 }
 
 func get(args []Value) Value {
@@ -104,17 +115,15 @@ func get(args []Value) Value {
 	return Value{Typ: "bulk", Bulk: value}
 }
 
-func del(args []Value) Value {
+func delCore(args []Value) Value {
 	if len(args) != 1 {
 		return Value{Typ: "error", Str: "ERR wrong number of arguments for 'del' command"}
 	}
 
 	key := args[0].Bulk
 
-	SETsMu.Lock()
 	_, ok := SETs[key]
 	delete(SETs, key)
-	SETsMu.Unlock()
 
 	HSETsMu.Lock()
 	delete(HSETs, key)
@@ -124,4 +133,10 @@ func del(args []Value) Value {
 		return Value{Typ: "integer", Num: 1}
 	}
 	return Value{Typ: "integer", Num: 0}
+}
+
+func delLocked(args []Value) Value {
+	SETsMu.Lock()
+	defer SETsMu.Unlock()
+	return delCore(args)
 }

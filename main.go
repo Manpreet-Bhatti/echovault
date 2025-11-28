@@ -73,22 +73,24 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 			results := []Value{}
 
+			SETsMu.Lock()
 			for _, qArgs := range queue {
 				qCmd := strings.ToUpper(qArgs[0].Bulk)
 				qParams := qArgs[1:]
 
-				handler, ok := Handlers[qCmd]
+				handler, ok := CoreHandlers[qCmd]
 				if ok {
 					val := handler(qParams)
 					results = append(results, val)
 
 					if qCmd == "SET" || qCmd == "DEL" {
-						// Reconstruct the command to write to AOF
+						aof.Write(Value{Typ: "array", Array: qArgs})
 					}
 				} else {
 					results = append(results, Value{Typ: "error", Str: "ERR unknown command"})
 				}
 			}
+			SETsMu.Unlock()
 
 			inMulti = false
 			queue = [][]Value{}
